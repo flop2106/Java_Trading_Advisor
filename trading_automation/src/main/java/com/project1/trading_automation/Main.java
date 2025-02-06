@@ -1,75 +1,40 @@
 package com.project1.trading_automation;
-import java.util.List;
-import java.util.ArrayList;
-import java.time.ZonedDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import com.project1.trading_automation.model.*;
+import com.project1.trading_automation.utils.*;
+import java.util.*;
 
-abstract class Price {
-    protected String ticker;
-    protected String date;
-    protected List<Double> prices;
-
-    public Price (String ticker){
-        this.ticker = ticker;
-
-        ZonedDateTime nycDateTime = ZonedDateTime.now(ZoneId.of("America/New_York"));
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        date = nycDateTime.format(formatter);
-
-        this.date = date;
-        this.prices = new ArrayList<Double>();
-    }
-
-    public abstract float getPrice(String ticker, String date);
-    public abstract List<Double> priceUpdate(String ticker, String date, float price);
-    public abstract List<Double> pricePrediction(String ticker, String date, List<Double> updatedPrices);
-}
-
-class US500 extends Price{
-
-    public US500(){
-        super("US500");
-    }
-    @Override
-    public float getPrice(String ticker, String date){
-        return 1000.0f;
-    }
-
-    @Override
-    public List<Double> priceUpdate(String ticker, String date, float price){
-        this.prices.add((double) price);
-        return this.prices;
-    }
-
-    @Override
-    public List<Double> pricePrediction(String ticker, String date, List<Double> updatedPrices){
-        List<Double> predictions = new ArrayList<>();
-        for (Double currentPrice: updatedPrices){
-            predictions.add(currentPrice * 1.01);
-        }
-        return predictions;
-    }
-
-    
-}
-
-// Main class to test the implementation
 public class Main {
     public static void main(String[] args) {
-        US500 us500 = new US500();
+        String csvFilePath = "trading_automation/src/main/resources/SP_500_Historical_Data.csv";
 
-        // Get the current price
-        float price = us500.getPrice(us500.ticker, us500.date);
-        System.out.println("Current Price: " + price);
+        US500 us500 = new US500(csvFilePath);
+        us500.fetchAndUpdatePrice();
+        Double pricePrediction = us500.predictNextDayPrice();
+        String historicalPrice = us500.getFirstNumRows(200);
 
-        // Update prices
-        List<Double> updatedPrices = us500.priceUpdate(us500.ticker, us500.date, price);
-        System.out.println("Updated Prices: " + updatedPrices);
+        
+        List<News> newsList = News.fetchNews("US500", 50);
+        StringBuilder newsResult = new StringBuilder();
+        for (News news: newsList){
+            newsResult.append(news).append("\n---------------------------\n");
+        }
 
-        // Predict future prices
-        List<Double> predictions = us500.pricePrediction(us500.ticker, us500.date, updatedPrices);
-        System.out.println("Predicted Prices: " + predictions);
+        String newsString = newsResult.toString();
+
+        String query = """
+            What is the expected movement of S&P500 today. 
+            What is the top and bottom resistance. 
+            Is ARIMA prediction as targer reasonable?
+            Based on the news is it support the prediction to buy, hold or short?
+            Historical Price: %s
+            ARIMA Prediction: %s
+            News Summary:
+            %s
+            """.formatted(historicalPrice, pricePrediction, newsString);
+        String response = OpenAIClient.sendMessageToOpenAI(query);
+        System.out.println("OpenAI Response: " + response);
+    
+    
     }
-}
 
+}
